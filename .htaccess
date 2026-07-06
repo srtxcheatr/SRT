@@ -1,0 +1,12 @@
+# Real credentials should come from the FIREBASE_SERVICE_ACCOUNT_JSON
+# environment variable (see src/firebase.php) — but just in case a key
+# file ever ends up in this folder, make sure Apache never serves it.
+<FilesMatch "\.(json|env)$">
+  <IfModule mod_authz_core.c>
+    Require all denied
+  </IfModule>
+  <IfModule !mod_authz_core.c>
+    Order allow,deny
+    Deny from all
+  </IfModule>
+</FilesMatch>
