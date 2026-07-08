@@ -1,4 +1,8 @@
 <?php
+error_reporting(0);
+ini_set('display_errors', 0);
+header('Content-Type: application/json');
+
 // api/purchase/balance.php
 //
 // The browser sends only a `sku`. It has no say over price — that
