@@ -51,7 +51,19 @@ function firebase(): Factory {
  * cannot forge a token that verifies as someone else's.
  */
 function require_firebase_uid(): string {
+  // १. सुरुमा सामान्य तरिकाले हेडर खोज्ने
   $header = $_SERVER['HTTP_AUTHORIZATION'] ?? '';
+  
+  // २. यदि सर्भरले त्यसलाई ब्लक गरेको छ भने getallheaders() बाट खोज्ने (Render/Apache को लागि)
+  if (!$header && function_exists('getallheaders')) {
+    $headers = getallheaders();
+    if (isset($headers['Authorization'])) {
+        $header = $headers['Authorization'];
+    } elseif (isset($headers['authorization'])) {
+        $header = $headers['authorization'];
+    }
+  }
+  
   if (!preg_match('/^Bearer\s+(.+)$/i', $header, $m)) {
     http_response_code(401);
     echo json_encode(['success' => false, 'error' => 'Missing Authorization header']);
@@ -66,6 +78,7 @@ function require_firebase_uid(): string {
     exit;
   }
 }
+
 
 function firestore() {
   return firebase()->createFirestore()->database();
