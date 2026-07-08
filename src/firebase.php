@@ -82,7 +82,7 @@ function apply_cors(): void {
   $allowed = [
     'https://bronzx.web.app',
     'https://bronzx.firebaseapp.com',
-    // 'https://your-custom-domain.com',
+    'https://reselle.onrender.com',
   ];
   $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
   if (in_array($origin, $allowed, true)) {
