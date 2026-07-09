@@ -44,6 +44,39 @@ function firebase(): Factory {
 }
 
 /**
+ * Reads the Authorization header from wherever it actually lands.
+ * Apache (and some proxies in front of it, including on some hosts)
+ * strip the Authorization header from $_SERVER by default — PHP never
+ * sees it even though the browser sent it correctly. This checks every
+ * place it might have ended up instead of assuming just one.
+ */
+function get_bearer_token(): ?string {
+  $header = $_SERVER['HTTP_AUTHORIZATION'] ?? '';
+
+  // Some Apache/CGI setups only expose it under this alternate key
+  // when a rewrite/redirect happened internally.
+  if ($header === '' && !empty($_SERVER['REDIRECT_HTTP_AUTHORIZATION'])) {
+    $header = $_SERVER['REDIRECT_HTTP_AUTHORIZATION'];
+  }
+
+  // Last resort: ask Apache directly for the raw request headers.
+  // Header name casing can vary by client/proxy, so match case-insensitively.
+  if ($header === '' && function_exists('getallheaders')) {
+    foreach (getallheaders() as $name => $value) {
+      if (strcasecmp($name, 'Authorization') === 0) {
+        $header = $value;
+        break;
+      }
+    }
+  }
+
+  if (preg_match('/^Bearer\s+(.+)$/i', $header, $m)) {
+    return $m[1];
+  }
+  return null;
+}
+
+/**
  * Verifies the Firebase ID token sent as "Authorization: Bearer <token>".
  * Exits with 401 if it's missing, expired, or doesn't check out.
  * This is what makes the returned uid trustworthy for everything else —
@@ -51,26 +84,14 @@ function firebase(): Factory {
  * cannot forge a token that verifies as someone else's.
  */
 function require_firebase_uid(): string {
-  // १. सुरुमा सामान्य तरिकाले हेडर खोज्ने
-  $header = $_SERVER['HTTP_AUTHORIZATION'] ?? '';
-  
-  // २. यदि सर्भरले त्यसलाई ब्लक गरेको छ भने getallheaders() बाट खोज्ने (Render/Apache को लागि)
-  if (!$header && function_exists('getallheaders')) {
-    $headers = getallheaders();
-    if (isset($headers['Authorization'])) {
-        $header = $headers['Authorization'];
-    } elseif (isset($headers['authorization'])) {
-        $header = $headers['authorization'];
-    }
-  }
-  
-  if (!preg_match('/^Bearer\s+(.+)$/i', $header, $m)) {
+  $token = get_bearer_token();
+  if ($token === null) {
     http_response_code(401);
     echo json_encode(['success' => false, 'error' => 'Missing Authorization header']);
     exit;
   }
   try {
-    $verified = firebase()->createAuth()->verifyIdToken($m[1]);
+    $verified = firebase()->createAuth()->verifyIdToken($token);
     return (string)$verified->claims()->get('sub');
   } catch (\Throwable $e) {
     http_response_code(401);
@@ -78,7 +99,6 @@ function require_firebase_uid(): string {
     exit;
   }
 }
-
 
 function firestore() {
   return firebase()->createFirestore()->database();
