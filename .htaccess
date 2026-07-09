@@ -1,5 +1,16 @@
+# Fix: Apache strips the Authorization header before PHP ever sees
+# it. This explicitly captures it and re-exposes it as HTTP_AUTHORIZATION,
+# which is what $_SERVER['HTTP_AUTHORIZATION'] (and the getallheaders()
+# fallback in firebase.php) reads from. Needs mod_rewrite enabled and
+# AllowOverride All for this directory — both are set in the Dockerfile.
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteCond %{HTTP:Authorization} ^(.*)
+  RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+</IfModule>
+
 # Real credentials should come from the FIREBASE_SERVICE_ACCOUNT_JSON
-# environment variable (see src/firebase.php) — but just in case a key
+# environment variable (see firebase.php) — but just in case a key
 # file ever ends up in this folder, make sure Apache never serves it.
 <FilesMatch "\.(json|env)$">
   <IfModule mod_authz_core.c>
