@@ -14,6 +14,37 @@
 //    Locally: save the same file as serviceAccountKey.json right next
 //    to this one (already in .gitignore — never commit the real key).
 
+// ------------------------------------------------------------------
+// HARDENING — this must run before anything else in this file.
+//
+// What you hit ("Unexpected token '<' ... is not valid JSON") happens
+// when PHP prints a warning/notice/deprecation straight into the HTTP
+// response, ahead of the real JSON — your browser then tries to parse
+// that warning's HTML as data and fails. This makes that class of bug
+// structurally impossible from here on: warnings get logged instead
+// of printed, and even a hard fatal error still comes back as clean
+// JSON instead of raw PHP output.
+// ------------------------------------------------------------------
+ini_set('display_errors', '0');
+error_reporting(E_ALL);
+ob_start(); // buffer everything; nothing reaches the client except what we deliberately echo
+
+set_error_handler(function ($errno, $errstr, $errfile, $errline) {
+  error_log("[srtx-backend] $errstr in $errfile:$errline");
+  return true; // handled — prevents PHP's default (which would print it)
+});
+
+register_shutdown_function(function () {
+  $err = error_get_last();
+  if ($err && in_array($err['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR], true)) {
+    error_log('[srtx-backend] FATAL: ' . $err['message'] . ' in ' . $err['file'] . ':' . $err['line']);
+    while (ob_get_level() > 0) ob_end_clean();
+    http_response_code(500);
+    header('Content-Type: application/json');
+    echo json_encode(['success' => false, 'error' => 'Internal server error. Please try again.']);
+  }
+});
+
 require __DIR__ . '/../vendor/autoload.php';
 
 use Kreait\Firebase\Factory;
